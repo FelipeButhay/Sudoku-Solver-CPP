@@ -38,6 +38,7 @@ class Sudoku{
         int sx, sy, sq, gap, sgap, bs;
 
         char visualBoard[9][9] = {' '};
+        int saveBoard[9][9] = {0};
         int Board[9][9] = {0};
         int sqSelected;
         int sqIter;
@@ -46,9 +47,10 @@ class Sudoku{
 
         // 0 no resuelto, 1 resuleto, -1 invalido.
         int solved;
+        bool visualSolving;
 
-    bool boardValid1Sq(int sqAnalized){
-        int sqx = sqAnalized%9 , sqy = sqAnalized/9;
+    bool boardValid1Sq(){
+        int sqx = sqIter%9 , sqy = sqIter/9;
 
         int number = Board[sqx][sqy];
         for (int i = 0; i<9; i++){ // linea en X
@@ -87,7 +89,9 @@ class Sudoku{
                 for (int j = 0; j<9; j++){
                     posX = gap + i*sq*1.1f + (i/3)*sgap;
                     posY = gap + j*sq*1.1f + (j/3)*sgap;
-                    DrawRectangle(posX, posY, sq, sq, (i + j*9 <= sqIter) ? RED : WHITE);
+                    if (sqIter > i + j*9) DrawRectangle(posX, posY, sq, sq, (saveBoard[i][j] == 0) ? PURPLE : WHITE);
+                    if (sqIter == i + j*9) DrawRectangle(posX, posY, sq, sq, BLUE);
+                    if (sqIter < i + j*9) DrawRectangle(posX, posY, sq, sq, WHITE);
                     char number[2] = {visualBoard[i][j], '\0'};
                     DrawText(number, posX + (sq - MeasureText(number, sq*4/5))/2, posY + sq/7, sq*4/5, BACKGORUND);
                 }
@@ -96,9 +100,25 @@ class Sudoku{
             DrawRectangle(gap*2 + bs, gap, MeasureText("SOLVE", gap) + gap, gap*1.5f, DARKGRAY);
             DrawText("SOLVE", gap*2.5f + bs, gap*1.25f, gap, GRAY);
 
+            DrawRectangle(gap*2 + bs, gap*3, MeasureText("Clear Board", gap) + gap, gap*1.5f, GRAY);
+            DrawText("Clear Board", gap*2.5f + bs, gap*3.25f, gap, WHITE);
+
+            DrawRectangle(gap*2 + bs, gap*5, gap, gap, GRAY);
+            DrawRectangle(gap*2 + bs + gap*0.11f, gap*5 + gap*0.11f, gap*0.8f, gap*0.8f, BACKGORUND);
+            DrawText("Visual Solving", gap*3.5f + bs, gap*5 + gap*0.11f, gap*0.8f, GRAY);
+
+            if (visualSolving){
+                DrawLineEx((Vector2){gap*2.2f + bs, gap*5.5f},
+                           (Vector2){gap*2.53f + bs, gap*5.85f}, 
+                           gap*0.12, PURPLE);
+                DrawLineEx((Vector2){gap*2.5f + bs, gap*5.8f},
+                           (Vector2){gap*3.1f + bs, gap*5.2f}, 
+                           gap*0.12, PURPLE);
+            }
+
         EndDrawing();
 
-        WaitTime(0.1);
+        WaitTime(0.01);
     }
 
     void solve() {
@@ -108,26 +128,53 @@ class Sudoku{
         if (Board[sqx][sqy] == 0){
             for(int i = 1; i<10; i++){
                 this->Board[sqx][sqy] = i;
-                this->visualBoard[sqx][sqy] = 48 + i;
-                //drawSolve();
-                if (boardValid1Sq(sqIter)){
+                if (boardValid1Sq()){
                     this->sqIter++;
                     solve();
                     if (sqIter == 81) return;
                 }
 
                 Board[sqx][sqy] = 0;
-                this->visualBoard[sqx][sqy] = ' ';
             }
 
             this->sqIter--;
-            //drawSolve();
             return;
 
         } else {
             this->sqIter++;
-            //drawSolve();
             solve();
+            if (sqIter == 81) return;
+            this->sqIter--;
+        }
+    }
+
+    void visualSolve() {
+        if (sqIter == 81) return;
+
+        int sqx = sqIter%9 , sqy = sqIter/9;
+        if (Board[sqx][sqy] == 0){
+            for(int i = 1; i<10; i++){
+                this->Board[sqx][sqy] = i;
+                this->visualBoard[sqx][sqy] = 48 + i;
+                drawSolve();
+                if (boardValid1Sq()){
+                    this->sqIter++;
+                    visualSolve();
+                    if (sqIter == 81) return;
+                }
+
+                this->Board[sqx][sqy] = 0;
+                this->visualBoard[sqx][sqy] = ' ';
+            }
+
+            this->sqIter--;
+            drawSolve();
+            return;
+
+        } else {
+            this->sqIter++;
+            drawSolve();
+            visualSolve();
             if (sqIter == 81) return;
             this->sqIter--;
         }
@@ -147,6 +194,8 @@ class Sudoku{
 
         this->solved = 0;
         this->msTime = 0;
+
+        this->visualSolving = true;
 
         InitWindow(sx, sy, "Soudoku Solver");
         SetTargetFPS(60);
@@ -180,27 +229,46 @@ class Sudoku{
                 // check if valid (simple rules)
                 bool valid = true;
                 float start = GetTime() * 1000;
-                for (int i = 0; i<81; i++){
-                    if (Board[i%9][i/9] == 0) continue;
+                for (this->sqIter = 0; sqIter<81; this->sqIter++){
                     if (valid){
-                        valid = boardValid1Sq(i);
-                    } else {
-                        break;
+                        valid = (Board[sqIter%9][sqIter/9] == 0) ? true : boardValid1Sq();
+                    }
+                    saveBoard[sqIter%9][sqIter/9] = Board[sqIter%9][sqIter/9];
+                    if (visualSolving){
+                        drawSolve();
+                        WaitTime(0.05);
                     }
                 }
 
                 // Run the algorithm
                 if (valid) {
                     this->sqIter = 0;
-                    solve();
+                    if (visualSolving){
+                        SetTargetFPS(10000);
+                        visualSolve();
+                        SetTargetFPS(60);
+                    } else {
+                        solve();
+                    }
+
+                    this->solved = sqIter == -1 ? -1 : 1;
+                } else {
+                    this->solved = -1;
                 }
 
                 float end = GetTime() * 1000;
 
+                for (int i = 0; i<81; i++){
+                    visualBoard[i%9][i/9] = Board[i%9][i/9] == 0 ? ' ' : Board[i%9][i/9] + 48;
+                }
+
                 // post run
-                this->solved = sqIter == -1 ? -1 : 1;
                 this->msTime = end - start;
                 this->timeToSolveStr = numToStr(msTime).erase(numToStr(msTime).find(".") + 4, numToStr(msTime).length()-1);
+            }
+
+            if (mouseInRect(gap*2 + bs, gap*5, gap, gap)){
+                this->visualSolving = !visualSolving;
             }
 
             if (mouseInRect(gap*2 + bs, gap*3, MeasureText("Clear Board", gap) + gap, gap*1.5f)){
@@ -247,13 +315,11 @@ class Sudoku{
             for (int j = 0; j<9; j++){
                 posX = gap + i*sq*1.1f + (i/3)*sgap;
                 posY = gap + j*sq*1.1f + (j/3)*sgap;
-                if (solved == 0){
-                    DrawRectangle(posX, posY, sq, sq, (i + j*9 == sqSelected) ? BLUE : WHITE);
-                }
-                if (solved == 1){
+                if (solved == 0 || saveBoard[i][j] != 0){
+                    DrawRectangle(posX, posY, sq, sq, (i + j*9 == sqSelected && solved == 0) ? BLUE : WHITE);
+                } else if (solved == 1){
                     DrawRectangle(posX, posY, sq, sq, GREEN);
-                }
-                if (solved == -1){
+                } else if (solved == -1){
                     DrawRectangle(posX, posY, sq, sq, RED);
                 }
                 char number[2] = {visualBoard[i][j], '\0'};
@@ -270,6 +336,19 @@ class Sudoku{
                       mouseInRect(gap*2 + bs, gap*3, MeasureText("Clear Board", gap) + gap, gap*1.5f) ? DARKGRAY : GRAY);
         DrawText("Clear Board", gap*2.5f + bs, gap*3.25f, gap, 
                  mouseInRect(gap*2 + bs, gap*3, MeasureText("Clear Board", gap) + gap, gap*1.5f) ? GRAY : WHITE);
+
+        DrawRectangle(gap*2 + bs, gap*5, gap, gap, GRAY);
+        DrawRectangle(gap*2 + bs + gap*0.11f, gap*5 + gap*0.11f, gap*0.8f, gap*0.8f, BACKGORUND);
+        DrawText("Visual Solving", gap*3.5f + bs, gap*5 + gap*0.11f, gap*0.8f, GRAY);
+
+        if (visualSolving){
+            DrawLineEx((Vector2){gap*2.2f + bs, gap*5.5f},
+                       (Vector2){gap*2.53f + bs, gap*5.85f}, 
+                       gap*0.12, PURPLE);
+            DrawLineEx((Vector2){gap*2.5f + bs, gap*5.8f},
+                       (Vector2){gap*3.1f + bs, gap*5.2f}, 
+                       gap*0.12, PURPLE);
+        }
 
         if (solved == 1){
             DrawText("Solved", gap*2.0f + bs, sy-gap*3.5f , gap, GREEN);
